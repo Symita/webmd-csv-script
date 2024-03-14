@@ -34,7 +34,18 @@ async function uploadFile(filePath: string, mimeType: string): Promise<string> {
     try {
         const { Location } = await s3.upload(params).promise();
         console.log('File uploaded successfully:', Location);
-        return Location;
+
+                // Delete the local file after successful upload
+                fs.unlink(filePath, (err:any) => {
+                    if (err) {
+                        console.error('Error deleting local file:', err);
+                    } else {
+                        console.log(`Local file deleted successfully: ${filePath}`);
+                    }
+                });
+        
+                return Location;
+
     } catch (error) {
         console.error('Error uploading file:', error);
         return '';
