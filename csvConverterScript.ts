@@ -15,44 +15,8 @@ AWS.config.update({
     region: 'us-east-1'
 });
 
-
 const s3 = new AWS.S3();
 
-
-async function downloadCsvFromUrl(url: string, outputPath: string): Promise<void> {
-    console.log(`Starting download of CSV file from ${url}`);
-
-    const response = await axios({
-        url,
-        method: 'GET',
-        responseType: 'stream',
-    });
-
-    const totalLength = response.headers['content-length'];
-
-    let downloadedLength = 0;
-    let percentageCompleted = 0;
-
-    response.data.on('data', (chunk: Buffer) => {
-        downloadedLength += chunk.length;
-        percentageCompleted = (downloadedLength / parseInt(totalLength)) * 100;
-        process.stdout.write(`Downloading: ${percentageCompleted.toFixed(2)}% \r`);
-    });
-
-    await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
-    
-    const writer = fs.createWriteStream(outputPath);
-
-    response.data.pipe(writer);
-
-    return new Promise((resolve, reject) => {
-        writer.on('finish', () => {
-            console.log(`\nCSV file downloaded successfully and saved to ${outputPath}`);
-            resolve();
-        });
-        writer.on('error', reject);
-    });
-}
 
 
 async function uploadFile(filePath: string, mimeType: string): Promise<string> {
@@ -137,39 +101,76 @@ async function processMedia(row: any): Promise<void> {
     }
 }
 
+// async function uploadCsvToServer(): Promise<void> {
+//     const localCsvFilePath = path.join(__dirname, './content_library_krames_dump_full.csv');
+//     const jsonFilePath = path.join(__dirname, './output.json');
+
+//     let jsonData: any[] = [];
+
+//     fs.createReadStream(localCsvFilePath)
+//         .pipe(csv())
+//         .on('data', async (row) => {
+//             try {
+//                 await processMedia(row);
+//                 jsonData.push(row);
+//             } catch (error) {
+//                 console.error('Error processing row, continuing with next:', error);
+//             }
+//         })
+//         .on('end', async () => {
+//             fs.writeFile(jsonFilePath, JSON.stringify(jsonData, null, 2), (err) => {
+//                 if (err) {
+//                     console.error('Failed to save JSON:', err);
+//                 } else {
+//                     console.log('CSV file has been processed and saved.');
+//                 }
+//             });
+//         });
+// }
+
+
+// uploadCsvToServer().catch(console.error);
 
 
 async function uploadCsvToServer(): Promise<void> {
-    const csvUrl = 'https://symita-webmd-media.s3.amazonaws.com/content_library_krames_dump_full.csv';
-    const localCsvFilePath = path.join(__dirname, './content_library_krames_dump_full.csv');
+    const csvFilePath = path.join(__dirname, './content_library_krames_dump_full.csv');
     const jsonFilePath = path.join(__dirname, './output.json');
 
-    await downloadCsvFromUrl(csvUrl, localCsvFilePath); // Download CSV file
-
+    let rows: any[] = [];
     let jsonData: any[] = [];
 
-    fs.createReadStream(localCsvFilePath)
-        .pipe(csv())
-        .on('data', async (row) => {
-            try {
-                await processMedia(row);
-                jsonData.push(row);
-            } catch (error) {
-                console.error('Error processing row, continuing with next:', error);
-            }
-        })
-        .on('end', async () => {
-            fs.writeFile(jsonFilePath, JSON.stringify(jsonData, null, 2), (err) => {
-                if (err) {
-                    console.error('Failed to save JSON:', err);
-                } else {
-                    console.log('CSV file has been processed and saved.');
-                }
+    // First, collect all rows from the CSV file
+    await new Promise<void>((resolve, reject) => {
+        fs.createReadStream(csvFilePath)
+            .pipe(csv())
+            .on('data', (row) => rows.push(row))
+            .on('end', resolve)
+            .on('error', (error) => {
+                console.error('Failed to read CSV file:', error);
+                reject(error);
             });
-        });
+    });
+
+    // Then, process each row sequentially
+    for (const row of rows) {
+        try {
+            await processMedia(row);
+            jsonData.push(row);
+        } catch (error) {
+            console.error('Error processing row, continuing with next:', error);
+            // Even if there's an error, push the original row data to jsonData
+            jsonData.push(row);
+        }
+    }
+
+    // After processing all rows, write them to the JSON file
+    fs.writeFile(jsonFilePath, JSON.stringify(jsonData, null, 2), (err) => {
+        if (err) {
+            console.error('Failed to save JSON:', err);
+        } else {
+            console.log('CSV file has been processed and saved.');
+        }
+    });
 }
 
-
-
-
-uploadCsvToServer().catch(console.error);
+uploadCsvToServer().catch((error) => console.error('Failed to upload CSV to server:', error));
