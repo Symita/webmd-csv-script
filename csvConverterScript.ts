@@ -9,9 +9,16 @@ import { promisify } from "util";
 const streamPipeline = promisify(pipeline);
 
 // Update AWS config
+// AWS.config.update({
+//   accessKeyId: "AKIAQ7DJ4T4VGXDHQMLU",
+//   secretAccessKey: "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",
+//   region: "us-east-1",
+// });
+
+///prod
 AWS.config.update({
-  accessKeyId: "AKIAQ7DJ4T4VGXDHQMLU",
-  secretAccessKey: "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",
+  accessKeyId: "AKIA6LMX4PH6H2KQVCU4",
+  secretAccessKey: "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",
   region: "us-east-1",
 });
 
@@ -19,7 +26,7 @@ const s3 = new AWS.S3();
 
 async function uploadFile(filePath: string, mimeType: string): Promise<string> {
   const fileStream = fs.createReadStream(filePath);
-  const bucketName = "symita-webmd-media";
+  const bucketName = "patients-education";
   const objectKey = `${Date.now()}_${path.basename(filePath)}`;
 
   const params = {
